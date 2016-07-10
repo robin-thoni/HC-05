@@ -71,6 +71,12 @@
 class HC05 : public Stream
 {
 public:
+    enum Roles {
+        Slave = 0,
+        Master = 1,
+        SlaveLoop = 2
+    };
+
     HC05(int cmdPin, int statePin);
     HC05(int cmdPin, int statePin, uint8_t rx, uint8_t tx);
     unsigned long findBaud();
@@ -79,8 +85,8 @@ public:
 
     // cmd(): 100ms default timeout covers simple commands, but commands
     // that manage the connection are likely to take much longer.
-    int cmd(String cmd, unsigned long timeout=100);
-    int cmd(const char* cmd, unsigned long timeout=100);
+    bool cmd(String cmd, unsigned long timeout=100);
+    bool cmd(const char* cmd, unsigned long timeout=100);
 
     // HC05 cmdMode2 forces 38400, no parity, one stop bit
     // Entering cmdMode2 uses a pin to turn the HC05 power on and off
@@ -112,6 +118,27 @@ private:
     int _bufsize;
     char _buffer[32];
     void setCmdPin(bool state);
+
+    String _stringBuffer;
+    String _stringData;
+    int _lastError;
+
+public:
+    bool atGetCommand(String command, unsigned long timeout=100);
+    bool atGetCommand1(String command, String arg1, unsigned long timeout=100);
+
+    bool atTest(unsigned long timeout=100);
+    bool atReset(unsigned long timeout=100);
+    bool atVersion(unsigned long timeout=100);
+    bool atRestore(unsigned long timeout=100);
+    bool atGetAddress(unsigned long timeout=100);
+    bool atGetName(unsigned long timeout=100);
+    bool atSetName(String name, unsigned long timeout=100);
+    bool atGetRemoteName(String address, unsigned long timeout=100);
+    bool atGetRole(unsigned long timeout=100);
+    bool atSetRole(Roles role, unsigned long timeout=100);
+    bool atGetPassKey(unsigned long timeout=100);
+    bool atSetPassKey(String passKey, unsigned long timeout=100);
 };
 
 extern HC05 btSerial;

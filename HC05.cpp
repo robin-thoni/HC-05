@@ -63,15 +63,16 @@ unsigned long HC05::findBaud()
     DEBUG_WRITE("\r\nNo connection\r\n");
     return(0);
 }
-int HC05::cmd(String cmd, unsigned long timeout)
+bool HC05::cmd(String cmd, unsigned long timeout)
 {
-    char raw[cmd.length() + 1];
-    cmd.toCharArray(raw, sizeof(raw));
-    return this->cmd(raw, timeout);
+    return this->cmd(cmd.c_str(), timeout);
 }
 
-int HC05::cmd(const char* cmd, unsigned long timeout)
+bool HC05::cmd(const char* cmd, unsigned long timeout)
 {
+    _lastError = -1;
+    _stringBuffer = "";
+    _stringData = "";
     int recvd = 0;
     DEBUG_PRINTLN(cmd);
 
@@ -94,11 +95,14 @@ int HC05::cmd(const char* cmd, unsigned long timeout)
         //            of a multiline response before the OK is received.
         //            The return would incorrectly indicate an error (no
         //            OK response).
-        recvd = _btSerial.readBytesUntil('\n',_buffer,_bufsize);
+        recvd = _btSerial.readBytesUntil('\n', _buffer, _bufsize);
         if (recvd > 0)
         {
-            DEBUG_WRITE((uint8_t *)_buffer,recvd);
-            DEBUG_WRITE('\n');
+            _buffer[recvd] = 0;
+            _stringBuffer += _buffer;
+            _stringBuffer += "\n";
+//            DEBUG_WRITE((uint8_t *)_buffer,recvd);
+//            DEBUG_WRITE('\n');
         }
         else
         {
@@ -113,7 +117,22 @@ int HC05::cmd(const char* cmd, unsigned long timeout)
     // command mode. The appeared to be a baud rate dependency and with
     // >100ms required at 9600 baud.
     delay(150);
-    return((_buffer[0] == 'O' && _buffer[1] == 'K'));
+    DEBUG_WRITE(_stringBuffer.c_str());
+
+    if (_buffer[0] == 'O' && _buffer[1] == 'K') {
+        return true;
+    }
+
+    if (_stringBuffer.startsWith("ERROR:(")) {
+        String errorCode = _stringBuffer.substring(7, _stringBuffer.length() - 3);
+        _lastError = errorCode.toInt();
+        DEBUG_WRITE("Error: ");
+        DEBUG_PRINTLN(_lastError);
+    } else {
+        _lastError = -1;
+    }
+
+    return false;
 }
 
 
@@ -257,4 +276,81 @@ void HC05::setCmdPin(bool state)
     {
         digitalWrite(_cmdPin, state);
     }
+}
+
+bool HC05::atGetCommand(String command, unsigned long timeout)
+{
+    return this->atGetCommand1(command, "", timeout);
+}
+
+bool HC05::atGetCommand1(String command, String arg1, unsigned long timeout)
+{
+    if (this->cmd("AT+" + command + "?" + arg1, timeout)) {
+        if (_stringBuffer.startsWith("+" + command + ":")) {
+            _stringData = _stringBuffer.substring(command.length() + 2, _stringBuffer.length() - 6);
+            DEBUG_PRINTLN(_stringData);
+        }
+        return true;
+    }
+    return false;
+}
+
+bool HC05::atTest(unsigned long timeout)
+{
+    return this->cmd("AT", timeout);
+}
+
+bool HC05::atReset(unsigned long timeout)
+{
+    return this->cmd("AT+RESET", timeout);
+}
+
+bool HC05::atVersion(unsigned long timeout)
+{
+    return this->atGetCommand("VERSION", timeout);
+}
+
+bool HC05::atRestore(unsigned long timeout)
+{
+    return this->cmd("AT+ORGL", timeout);
+}
+
+bool HC05::atGetAddress(unsigned long timeout)
+{
+    return this->atGetCommand("ADDR", timeout);
+}
+
+bool HC05::atGetName(unsigned long timeout)
+{
+    return this->atGetCommand("NAME", timeout);
+}
+
+bool HC05::atSetName(String name, unsigned long timeout)
+{
+    return this->cmd("AT+NAME=" + name, timeout);
+}
+
+bool HC05::atGetRemoteName(String address, unsigned long timeout)
+{
+    return this->atGetCommand1("RNAME", address, timeout);
+}
+
+bool HC05::atGetRole(unsigned long timeout)
+{
+    return this->atGetCommand("ROLE", timeout);
+}
+
+bool HC05::atSetRole(Roles role, unsigned long timeout)
+{
+    return this->cmd("AT+ROLE=" + role, timeout);
+}
+
+bool HC05::atGetPassKey(unsigned long timeout)
+{
+    return this->atGetCommand("PSWD", timeout);
+}
+
+bool HC05::atSetPassKey(String passKey, unsigned long timeout)
+{
+    return this->cmd("AT+PSWD=" + passKey, timeout);
 }
